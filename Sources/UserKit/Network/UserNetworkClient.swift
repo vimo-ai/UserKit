@@ -17,18 +17,21 @@ public final class UserNetworkClient {
         config: UserAPIConfig = .default,
         tokenStorage: UserTokenStorage = .shared,
         networkEngine: NetworkEngine? = nil,
-        userFeedbackHandler: UserFeedbackHandler? = nil
+        userFeedbackHandler: UserFeedbackHandler? = nil,
+        tokenRefresher: TokenRefresher? = nil
     ) {
         self.config = config
         self.tokenStorage = tokenStorage
         
         // 使用提供的网络引擎或创建默认的
         let engine = networkEngine ?? URLSessionEngine()
+        let refresher = tokenRefresher ?? UserTokenRefresher(config: config, tokenStorage: tokenStorage, networkEngine: engine)
         self.apiClient = APIClient(
             engine: engine,
             tokenStorage: tokenStorage,
             userFeedbackHandler: userFeedbackHandler,
-            jsonDecoder: Self.createJSONDecoder()
+            jsonDecoder: Self.createJSONDecoder(),
+            tokenRefresher: refresher
         )
     }
     
@@ -37,6 +40,21 @@ public final class UserNetworkClient {
     /// Apple ID 登录
     public func loginWithApple(_ loginData: AppleLoginRequest) async throws -> UserAuthResponse {
         let request = AppleLoginAPIRequest(config: config, loginData: loginData)
+        
+        do {
+            let response = try await apiClient.send(request)
+            tokenStorage.saveToken(response.token)
+            return response
+        } catch let error as APIError {
+            throw UserNetworkError.from(apiError: error)
+        } catch {
+            throw UserNetworkError.apiError(.requestFailed(error))
+        }
+    }
+    
+    /// 账号密码登录
+    public func loginWithPassword(_ loginData: PasswordLoginRequest) async throws -> UserAuthResponse {
+        let request = PasswordLoginAPIRequest(config: config, loginData: loginData)
         
         do {
             let response = try await apiClient.send(request)
@@ -157,7 +175,7 @@ public final class UserNetworkClient {
     
     // MARK: - Private Helpers
     
-    private static func createJSONDecoder() -> JSONDecoder {
+    internal static func createJSONDecoder() -> JSONDecoder {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         
