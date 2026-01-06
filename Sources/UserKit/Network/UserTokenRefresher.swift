@@ -16,7 +16,7 @@ public final class UserTokenRefresher: TokenRefresher {
         self.config = config
         self.tokenStorage = tokenStorage
 
-        let engine = networkEngine ?? URLSessionEngine()
+        let engine = networkEngine ?? AlamofireEngine()
         self.refreshClient = APIClient(
             engine: engine,
             tokenStorage: tokenStorage,
@@ -27,9 +27,11 @@ public final class UserTokenRefresher: TokenRefresher {
     }
 
     public func refreshToken() async throws -> String {
+        print("[TokenRefresher] start refresh")
         let request = RefreshTokenAPIRequest(config: config)
         let response: TokenRefreshResponse = try await refreshClient.send(request)
         tokenStorage.saveToken(response.token)
+        print("[TokenRefresher] refreshed token: \(response.token.prefix(8))...")
         return response.token
     }
 }

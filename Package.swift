@@ -15,8 +15,8 @@ let package = Package(
             targets: ["UserKit"]),
     ],
     dependencies: [
-        // 依赖GitHub上的 CoreNetworkKit
-        .package(url: "https://github.com/vimo-ai/CoreNetworkKit.git", from: "0.0.1")
+        // 依赖最新 CoreNetworkKit（包含 TokenRefresher）
+        .package(url: "https://github.com/vimo-ai/CoreNetworkKit.git", branch: "main")
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.

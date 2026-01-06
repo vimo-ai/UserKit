@@ -24,7 +24,7 @@ public final class UserNetworkClient {
         self.tokenStorage = tokenStorage
         
         // 使用提供的网络引擎或创建默认的
-        let engine = networkEngine ?? URLSessionEngine()
+        let engine = networkEngine ?? AlamofireEngine()
         let refresher = tokenRefresher ?? UserTokenRefresher(config: config, tokenStorage: tokenStorage, networkEngine: engine)
         self.apiClient = APIClient(
             engine: engine,
