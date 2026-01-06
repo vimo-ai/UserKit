@@ -14,7 +14,13 @@ public final class ObservableUserService: ObservableObject {
             saveUserInfo()
         }
     }
-    
+
+    // MARK: - Membership State
+
+    @Published public var memberTier: MemberTier = .free
+    @Published public var dailyQuotaRemaining: Int = 3
+    @Published public var dailyQuotaTotal: Int = 3
+
     private let storage = UserDefaults.standard
     private let userInfoKey = "UserKitUserInfo"
     private let userTypeKey = "UserKitUserType"
@@ -32,27 +38,61 @@ public final class ObservableUserService: ObservableObject {
     /// 使用Apple登录
     @MainActor
     public func loginWithApple(identityToken: String, email: String?, name: String?, authorizationCode: String?) async {
+        // 关键：在网络请求前立即缓存 email/name
+        // Apple 只在首次授权时返回这些信息，网络失败后无法重新获取
+        SecureStorage.shared.cacheAppleLoginInfo(email: email, name: name)
+
         do {
             guard let userService = userService else {
                 print("UserService未初始化")
                 userState = .needsAuth
                 return
             }
-            
+
+            // 尝试从缓存获取 email/name（如果当前为空）
+            let finalEmail = email ?? SecureStorage.shared.getCachedAppleEmail()
+            let finalName = name ?? SecureStorage.shared.getCachedAppleName()
+
             let user = try await userService.loginWithApple(
                 identityToken: identityToken,
-                email: email,
-                name: name,
+                email: finalEmail,
+                name: finalName,
                 authorizationCode: authorizationCode
             )
-            
+
             userState = .authenticated(user)
             print("Apple登录成功: \(user.nickname)")
-            
+
+            // 登录成功后清除缓存
+            SecureStorage.shared.clearAppleLoginCache()
+
             // 登录成功后，申请推送权限并提交DeviceToken
             await requestPushPermissionIfNeeded()
         } catch {
             print("Apple登录失败: \(error)")
+            // 登录失败，保留缓存以便重试
+            userState = .needsAuth
+        }
+    }
+    
+    /// Logs in with an account and password.
+    @MainActor
+    public func loginWithPassword(account: String, password: String) async {
+        do {
+            guard let userService = userService else {
+                print("UserService not initialized")
+                userState = .needsAuth
+                return
+            }
+            
+            let user = try await userService.loginWithPassword(account: account, password: password)
+            
+            userState = .authenticated(user)
+            print("Password login successful: \(user.nickname)")
+            
+            await requestPushPermissionIfNeeded()
+        } catch {
+            print("Password login failed: \(error)")
             userState = .needsAuth
         }
     }
@@ -128,6 +168,12 @@ public final class ObservableUserService: ObservableObject {
         try await userService.registerDevice(deviceInfo)
     }
     
+    /// 绑定设备
+    @MainActor
+    public func bindDevice(deviceId: String) async throws {
+
+    }
+    
     // MARK: - Push Notification Support
     
     /// 在用户登录成功后申请推送权限
@@ -160,10 +206,41 @@ public final class ObservableUserService: ObservableObject {
     /// 登出
     @MainActor
     public func logout() {
+        // 清除用户状态
         userState = .needsAuth
+        memberTier = .free
+        dailyQuotaRemaining = 3
+        dailyQuotaTotal = 3
+
+        // 清除 UserDefaults 中的用户信息
         clearUserInfo()
+
+        // 清除 Keychain 中的 Token
+        UserTokenStorage.shared.clearTokens()
+
+        // 清除 Apple 登录缓存
+        SecureStorage.shared.clearAppleLoginCache()
+
+        print("🚪 用户已登出，所有数据已清除")
     }
-    
+
+    /// 注销 Apple 账户（删除账户）
+    /// 调用后端 API 注销 Apple ID 绑定，然后清理本地状态
+    @MainActor
+    public func deregisterApple() async throws {
+        guard let userService = userService else {
+            throw UserKitError.unknown(nil)
+        }
+
+        // 1. 调用后端 API 注销 Apple ID
+        try await userService.deregisterApple()
+
+        // 2. 清理本地状态
+        logout()
+
+        print("🗑️ Apple 账户已注销")
+    }
+
     // MARK: - Private Methods
     
     private func initializeUserService(baseURL: String) {
@@ -226,6 +303,14 @@ public final class ObservableUserService: ObservableObject {
         storage.removeObject(forKey: userInfoKey)
         storage.removeObject(forKey: userTypeKey)
     }
+
+    // MARK: - Membership Methods
+
+    /// 获取会员信息（占位方法，实际实现在Calendar模块中）
+    @MainActor
+    public func fetchMembershipInfo() async {
+        print("⚠️ fetchMembershipInfo() 应该在Calendar模块中被重写为 fetchMembershipInfoActual()")
+    }
 }
 
 // MARK: - UserState
@@ -238,28 +323,29 @@ public enum UserState: Equatable {
     
     /// 当前用户信息（如果已登录）
     public var currentUser: User? {
-        #if DEBUG && targetEnvironment(simulator)
-        // DEBUG模式下的Mock用户，与API header的userid保持一致
-        return User(
-            id: 2,
-            account: "debug_user",
-            nickname: "Debug用户",
-            avatar: nil,
-            email: nil,
-            phone: nil,
-            platform: "iOS",
-            token: "debug_token",
-            isAnonymous: false,
-            anonymousUuid: nil
-        )
-        #else
+        // DEBUG Mock 已禁用，使用真实的用户数据
+        // #if DEBUG && targetEnvironment(simulator)
+        // // DEBUG模式下的Mock用户，与API header的userid保持一致
+        // return User(
+        //     id: 2,
+        //     account: "debug_user",
+        //     nickname: "Debug用户",
+        //     avatar: nil,
+        //     email: nil,
+        //     phone: nil,
+        //     platform: "iOS",
+        //     token: "debug_token",
+        //     isAnonymous: false,
+        //     anonymousUuid: nil
+        // )
+        // #else
         switch self {
         case .anonymous(let user), .authenticated(let user):
             return user
         case .loading, .needsAuth:
             return nil
         }
-        #endif
+        // #endif
     }
     
     /// 是否已登录（匿名或认证用户）

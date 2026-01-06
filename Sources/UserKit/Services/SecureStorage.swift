@@ -31,6 +31,10 @@ public final class SecureStorage {
         static let tokenSubmissionDate = "com.beaconflow.token_submission_date"
         static let notificationSettings = "com.beaconflow.notification_settings"
         static let appLaunchCount = "com.beaconflow.app_launch_count"
+
+        // Apple Login Cache Keys
+        static let appleLoginEmail = "com.userkit.apple_login_email"
+        static let appleLoginName = "com.userkit.apple_login_name"
         
         // Keychain Keys
         static let userAccessToken = "com.beaconflow.user_access_token"
@@ -94,7 +98,47 @@ public final class SecureStorage {
     public func getAppLaunchCount() -> Int {
         return UserDefaults.standard.integer(forKey: StorageKey.appLaunchCount)
     }
-    
+
+    // MARK: - Apple Login Cache
+
+    /// 缓存 Apple 登录信息
+    /// - Parameters:
+    ///   - email: Apple 返回的邮箱（首次授权才有）
+    ///   - name: Apple 返回的用户名（首次授权才有）
+    /// - Note: Apple 只在首次授权时返回 email 和 name，后续登录不再返回。
+    ///         因此需要在首次获得后立即缓存，以防网络请求失败导致信息丢失。
+    public func cacheAppleLoginInfo(email: String?, name: String?) {
+        if let email = email {
+            UserDefaults.standard.set(email, forKey: StorageKey.appleLoginEmail)
+            print("💾 Apple 登录邮箱已缓存")
+        }
+        if let name = name {
+            UserDefaults.standard.set(name, forKey: StorageKey.appleLoginName)
+            print("💾 Apple 登录名称已缓存")
+        }
+        UserDefaults.standard.synchronize()
+    }
+
+    /// 获取缓存的 Apple 登录邮箱
+    /// - Returns: 缓存的邮箱，如不存在返回 nil
+    public func getCachedAppleEmail() -> String? {
+        return UserDefaults.standard.string(forKey: StorageKey.appleLoginEmail)
+    }
+
+    /// 获取缓存的 Apple 登录名称
+    /// - Returns: 缓存的名称，如不存在返回 nil
+    public func getCachedAppleName() -> String? {
+        return UserDefaults.standard.string(forKey: StorageKey.appleLoginName)
+    }
+
+    /// 清除 Apple 登录缓存（登录成功后调用）
+    public func clearAppleLoginCache() {
+        UserDefaults.standard.removeObject(forKey: StorageKey.appleLoginEmail)
+        UserDefaults.standard.removeObject(forKey: StorageKey.appleLoginName)
+        UserDefaults.standard.synchronize()
+        print("🗑️ Apple 登录缓存已清除")
+    }
+
     // MARK: - Keychain Storage
     
     /// 存储用户访问Token到Keychain
@@ -145,10 +189,13 @@ public final class SecureStorage {
         // 清除UserDefaults
         clearDeviceToken()
         UserDefaults.standard.removeObject(forKey: StorageKey.notificationSettings)
-        
+
+        // 清除 Apple 登录缓存
+        clearAppleLoginCache()
+
         // 清除Keychain（保留设备标识）
         clearUserTokens()
-        
+
         print("🧹 所有用户数据已清除")
     }
     
