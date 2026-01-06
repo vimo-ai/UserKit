@@ -15,6 +15,14 @@ public protocol UserServiceProtocol {
     /// - Throws: `UserKitError` 如果登录失败。
     func loginWithApple(identityToken: String, email: String?, name: String?, authorizationCode: String?) async throws -> User
     
+    /// 使用账号和密码进行登录 - 纯粹的身份认证
+    /// - Parameters:
+    ///   - account: 用户账号
+    ///   - password: MD5加密后的密码
+    /// - Returns: 一个包含用户信息和认证令牌的 `User` 对象。
+    /// - Throws: `UserKitError` 如果登录失败。
+    func loginWithPassword(account: String, password: String) async throws -> User
+    
     /// 创建一个匿名用户（游客）- 纯粹的身份创建
     /// - Returns: 代表匿名用户的 `User` 对象。
     /// - Throws: 如果创建失败，则抛出 `UserKitError`。

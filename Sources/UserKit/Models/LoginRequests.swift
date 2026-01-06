@@ -20,7 +20,18 @@ public struct AppleLoginRequest: Codable {
     }
 }
 
-/// 匿名登录请求（对应后端AnonymousLoginDto）- 纯粹的身份创建
+/// Account/Password Login Request
+public struct PasswordLoginRequest: Codable {
+    public let account: String
+    public let password: String
+    
+    public init(account: String, password: String) {
+        self.account = account
+        self.password = password
+    }
+}
+
+/// Anonymous Login Request
 public struct AnonymousLoginRequest: Codable {
     // 匿名用户创建不需要额外参数，平台信息由服务端环境变量提供
     public init() {}

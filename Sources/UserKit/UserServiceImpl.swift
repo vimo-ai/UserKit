@@ -29,6 +29,19 @@ final class UserServiceImpl: UserServiceProtocol {
         }
     }
     
+    func loginWithPassword(account: String, password: String) async throws -> User {
+        let loginRequest = PasswordLoginRequest(account: account, password: password)
+        
+        do {
+            let response = try await networkClient.loginWithPassword(loginRequest)
+            return User(from: response)
+        } catch let error as UserNetworkError {
+            throw UserKitError.from(networkError: error)
+        } catch {
+            throw UserKitError.networkError(error)
+        }
+    }
+    
     func createAnonymousUser() async throws -> User {
         do {
             let response = try await networkClient.createAnonymousUser()

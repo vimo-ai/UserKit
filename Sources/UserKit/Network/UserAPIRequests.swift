@@ -206,3 +206,29 @@ internal struct DeregisterAppleAPIRequest: BeaconFlowRequest {
         BearerTokenAuthenticationStrategy()
     }
 }
+
+
+internal struct PasswordLoginAPIRequest: BeaconFlowRequest {
+    typealias Response = UserAuthResponse
+    typealias Body = PasswordLoginRequest
+    
+    private let config: UserAPIConfig
+    private let loginData: PasswordLoginRequest
+    
+    init(config: UserAPIConfig, loginData: PasswordLoginRequest) {
+        self.config = config
+        self.loginData = loginData
+    }
+    
+    var baseURL: URL { config.baseURL }
+    var path: String { "/auth/login/password" }
+    var method: HTTPMethod { .post }
+    
+    var headers: [String: String]? {
+        config.defaultHeaders
+    }
+    
+    var body: PasswordLoginRequest? {
+        loginData
+    }
+}
