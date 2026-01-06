@@ -51,7 +51,7 @@ public struct FullUserInfo: Codable, Equatable {
 
 
 /// 用户认证响应（对应后端UserAuthResponse）
-public struct UserAuthResponse: Codable, Equatable {
+public struct UserAuthResponse: Codable {
     public let id: Int
     public let nickname: String
     public let avatar: String?
@@ -63,18 +63,12 @@ public struct UserAuthResponse: Codable, Equatable {
     public let anonymousUuid: String?
     public let token: String
     
-    public init(id: Int, nickname: String, avatar: String?, email: String?, account: String?, phone: String?, platform: String?, anonymous: Bool?, anonymousUuid: String?, token: String) {
-        self.id = id
-        self.nickname = nickname
-        self.avatar = avatar
-        self.email = email
-        self.account = account
-        self.phone = phone
-        self.platform = platform
-        self.anonymous = anonymous
-        self.anonymousUuid = anonymousUuid
-        self.token = token
+
+    enum CodingKeys: String, CodingKey {
+        case id, nickname, avatar, email, account, phone, platform, anonymous, anonymousUuid, token
     }
+
+
 }
 
 /// 批量用户信息响应（对应后端UserInfo）
