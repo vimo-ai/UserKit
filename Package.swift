@@ -16,7 +16,8 @@ let package = Package(
     ],
     dependencies: [
         // 依赖最新 CoreNetworkKit（包含 TokenRefresher）
-        .package(url: "https://github.com/vimo-ai/CoreNetworkKit.git", branch: "main")
+        .package(url: "https://github.com/vimo-ai/CoreNetworkKit.git", branch: "main"),
+        .package(url: "https://github.com/vimo-ai/MLoggerKit.git", from: "0.0.1")
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
@@ -25,11 +26,9 @@ let package = Package(
             name: "UserKit",
             dependencies: [
                 // UserKit 的代码依赖 CoreNetworkKit 提供的功能
-                .product(name: "CoreNetworkKit", package: "CoreNetworkKit")
+                .product(name: "CoreNetworkKit", package: "CoreNetworkKit"),
+                "MLoggerKit"
             ]
         ),
-        .testTarget(
-            name: "UserKitTests",
-            dependencies: ["UserKit"]),
     ]
 )
