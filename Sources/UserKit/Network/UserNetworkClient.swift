@@ -195,8 +195,19 @@ public final class UserNetworkClient {
         }
     }
     
+    /// Execute any VimoRequest through the underlying APIClient
+    public func execute<R: VimoRequest>(_ request: R) async throws -> R.Response {
+        do {
+            return try await apiClient.send(request)
+        } catch let error as APIError {
+            throw UserNetworkError.from(apiError: error)
+        } catch {
+            throw UserNetworkError.apiError(.requestFailed(error))
+        }
+    }
+
     // MARK: - Utility Methods
-    
+
     /// 检查用户是否已登录
     public var isLoggedIn: Bool {
         return tokenStorage.hasValidToken
