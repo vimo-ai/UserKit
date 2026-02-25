@@ -41,7 +41,7 @@ public protocol UserServiceProtocol {
     ///   - currentToken: 当前匿名用户的认证 `token`。
     /// - Returns: 升级后的 `User` 对象。
     /// - Throws: 如果升级失败，则抛出 `UserKitError`。
-    func upgradeAnonymousUser(identityToken: String, email: String?, name: String?, currentToken: String) async throws -> User
+    func upgradeAnonymousUser(identityToken: String, email: String?, name: String?, authorizationCode: String?, currentToken: String) async throws -> User
     
     /// 获取当前用户信息。
     /// 使用存储在TokenStorage中的token进行验证。
@@ -57,4 +57,14 @@ public protocol UserServiceProtocol {
     /// 注销当前用户的 Apple ID 登录方式。
     /// - Throws: 如果操作失败，则抛出 `UserKitError`。
     func deregisterApple() async throws
+
+    /// 更新用户昵称。
+    /// - Parameter nickname: 新的昵称
+    /// - Throws: 如果操作失败，则抛出 `UserKitError`。
+    func updateNickname(_ nickname: String) async throws
+
+    /// 上传用户头像。
+    /// - Parameter imageData: 头像图片数据
+    /// - Throws: 如果操作失败，则抛出 `UserKitError`。
+    func uploadAvatar(_ imageData: Data) async throws
 }

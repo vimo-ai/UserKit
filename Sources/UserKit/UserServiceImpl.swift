@@ -54,28 +54,34 @@ final class UserServiceImpl: UserServiceProtocol {
     }
     
     func registerDevice(_ deviceInfo: DeviceInfo) async throws {
-        print("📱 [UserServiceImpl] ===== registerDevice 开始 =====")
-        print("📱 [UserServiceImpl] 输入设备信息: \(deviceInfo)")
-        
         let deviceRequest = DeviceRegisterRequest(deviceToken: deviceInfo.deviceToken)
-        print("📱 [UserServiceImpl] 构建请求: \(deviceRequest)")
-        
+
         do {
-            print("📱 [UserServiceImpl] 准备调用网络客户端...")
-            let response = try await networkClient.registerDevice(deviceRequest)
-            print("📱 [UserServiceImpl] 网络请求成功: \(response)")
+            _ = try await networkClient.registerDevice(deviceRequest)
         } catch let error as UserNetworkError {
-            print("❌ [UserServiceImpl] UserNetworkError: \(error)")
             throw UserKitError.from(networkError: error)
         } catch {
-            print("❌ [UserServiceImpl] 其他错误: \(error)")
             throw UserKitError.networkError(error)
         }
     }
-    
-    func upgradeAnonymousUser(identityToken: String, email: String?, name: String?, currentToken: String) async throws -> User {
-        // TODO: 实现匿名用户升级功能（暂时使用Apple登录流程）
-        return try await loginWithApple(identityToken: identityToken, email: email, name: name, authorizationCode: nil)
+
+    func upgradeAnonymousUser(identityToken: String, email: String?, name: String?, authorizationCode: String?, currentToken: String) async throws -> User {
+        let upgradeRequest = AnonymousUserUpgradeRequest(
+            identityToken: identityToken,
+            platform: "beacon",
+            authorizationCode: authorizationCode,
+            email: email,
+            name: name
+        )
+
+        do {
+            let response = try await networkClient.upgradeAnonymousUser(upgradeRequest)
+            return User(from: response)
+        } catch let error as UserNetworkError {
+            throw UserKitError.from(networkError: error)
+        } catch {
+            throw UserKitError.networkError(error)
+        }
     }
     
     func fetchCurrentUserInfo() async throws -> User {
@@ -90,9 +96,10 @@ final class UserServiceImpl: UserServiceProtocol {
                 email: response.email,
                 phone: response.phone,
                 platform: response.platform,
-                token: "", // 当前用户信息不包含token，token由UserNetworkClient管理
-                isAnonymous: false, // 能获取到用户信息说明已认证
-                anonymousUuid: nil
+                token: "",
+                isAnonymous: false,
+                anonymousUuid: nil,
+                binding: response.binding
             )
         } catch let error as UserNetworkError {
             throw UserKitError.from(networkError: error)
@@ -115,6 +122,26 @@ final class UserServiceImpl: UserServiceProtocol {
     func deregisterApple() async throws {
         do {
             _ = try await networkClient.deregisterApple()
+        } catch let error as UserNetworkError {
+            throw UserKitError.from(networkError: error)
+        } catch {
+            throw UserKitError.networkError(error)
+        }
+    }
+
+    func updateNickname(_ nickname: String) async throws {
+        do {
+            _ = try await networkClient.updateNickname(nickname)
+        } catch let error as UserNetworkError {
+            throw UserKitError.from(networkError: error)
+        } catch {
+            throw UserKitError.networkError(error)
+        }
+    }
+
+    func uploadAvatar(_ imageData: Data) async throws {
+        do {
+            _ = try await networkClient.uploadAvatar(imageData)
         } catch let error as UserNetworkError {
             throw UserKitError.from(networkError: error)
         } catch {

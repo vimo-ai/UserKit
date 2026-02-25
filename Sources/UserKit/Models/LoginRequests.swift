@@ -37,6 +37,27 @@ public struct AnonymousLoginRequest: Codable {
     public init() {}
 }
 
+/// 匿名用户Apple升级请求（对应后端AnonymousUserUpgradeDto）
+public struct AnonymousUserUpgradeRequest: Codable {
+    public let identityToken: String
+    public let platform: String
+    public let authorizationCode: String?
+    public let email: String?
+    public let name: String?
+
+    public init(identityToken: String,
+                platform: String = "beacon",
+                authorizationCode: String? = nil,
+                email: String? = nil,
+                name: String? = nil) {
+        self.identityToken = identityToken
+        self.platform = platform
+        self.authorizationCode = authorizationCode
+        self.email = email
+        self.name = name
+    }
+}
+
 /// 设备注册请求 - 独立的设备管理
 public struct DeviceRegisterRequest: Codable {
     public let deviceInfo: DeviceInfo

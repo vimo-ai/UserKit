@@ -15,8 +15,9 @@ public struct User: Codable, Equatable, Identifiable {
     public let token: String
     public let isAnonymous: Bool
     public let anonymousUuid: String?
-    
-    public init(id: Int, account: String?, nickname: String, avatar: String?, email: String?, phone: String?, platform: String?, token: String, isAnonymous: Bool, anonymousUuid: String?) {
+    public let binding: UserBinding?
+
+    public init(id: Int, account: String?, nickname: String, avatar: String?, email: String?, phone: String?, platform: String?, token: String, isAnonymous: Bool, anonymousUuid: String?, binding: UserBinding? = nil) {
         self.id = id
         self.account = account
         self.nickname = nickname
@@ -27,8 +28,9 @@ public struct User: Codable, Equatable, Identifiable {
         self.token = token
         self.isAnonymous = isAnonymous
         self.anonymousUuid = anonymousUuid
+        self.binding = binding
     }
-    
+
     /// 从UserAuthResponse创建User
     public init(from response: UserAuthResponse) {
         self.id = response.id
@@ -41,10 +43,11 @@ public struct User: Codable, Equatable, Identifiable {
         self.token = response.token
         self.isAnonymous = response.anonymous ?? false
         self.anonymousUuid = response.anonymousUuid
+        self.binding = response.binding
     }
-    
+
     enum CodingKeys: String, CodingKey {
-        case id, account, nickname, avatar, email, phone, platform, token, anonymousUuid
+        case id, account, nickname, avatar, email, phone, platform, token, anonymousUuid, binding
         case isAnonymous = "anonymous"
     }
 }

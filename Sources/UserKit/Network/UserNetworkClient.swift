@@ -9,7 +9,7 @@ public final class UserNetworkClient {
     
     private let apiClient: APIClient
     private let tokenStorage: UserTokenStorage
-    private let config: UserAPIConfig
+    public let config: UserAPIConfig
     
     // MARK: - Initialization
     
@@ -137,26 +137,60 @@ public final class UserNetworkClient {
         }
     }
     
-    // MARK: - Device APIs
-    
-    /// 注册设备信息
-    public func registerDevice(_ deviceData: DeviceRegisterRequest) async throws -> DeviceRegisterResponse {
-        print("📱 [UserNetworkClient] ===== registerDevice 开始 =====")
-        print("📱 [UserNetworkClient] 请求数据: \(deviceData)")
-        
-        let request = DeviceRegisterAPIRequest(config: config, deviceData: deviceData)
-        print("📱 [UserNetworkClient] 构建API请求: baseURL=\(request.baseURL), path=\(request.path)")
-        
+    /// 匿名用户Apple升级
+    public func upgradeAnonymousUser(_ upgradeData: AnonymousUserUpgradeRequest) async throws -> UserAuthResponse {
+        let request = UpgradeAnonymousUserAPIRequest(config: config, upgradeData: upgradeData)
+
         do {
-            print("📱 [UserNetworkClient] 准备发送HTTP请求...")
             let response = try await apiClient.send(request)
-            print("📱 [UserNetworkClient] HTTP请求成功: \(response)")
+            tokenStorage.saveToken(response.token)
             return response
         } catch let error as APIError {
-            print("❌ [UserNetworkClient] APIError: \(error)")
             throw UserNetworkError.from(apiError: error)
         } catch {
-            print("❌ [UserNetworkClient] 其他网络错误: \(error)")
+            throw UserNetworkError.apiError(.requestFailed(error))
+        }
+    }
+
+    /// 更新用户昵称
+    public func updateNickname(_ nickname: String) async throws -> UserProfileResponse {
+        let request = UpdateNicknameAPIRequest(config: config, nickname: nickname)
+
+        do {
+            let response = try await apiClient.send(request)
+            return response
+        } catch let error as APIError {
+            throw UserNetworkError.from(apiError: error)
+        } catch {
+            throw UserNetworkError.apiError(.requestFailed(error))
+        }
+    }
+
+    /// 上传用户头像
+    public func uploadAvatar(_ imageData: Data) async throws -> AvatarUploadResponse {
+        let request = UploadAvatarAPIRequest(config: config, imageData: imageData)
+
+        do {
+            return try await request.execute()
+        } catch let error as UserNetworkError {
+            throw error
+        } catch {
+            throw UserNetworkError.apiError(.requestFailed(error))
+        }
+    }
+
+    // MARK: - Device APIs
+
+    /// 注册设备信息
+    public func registerDevice(_ deviceData: DeviceRegisterRequest) async throws -> DeviceRegisterResponse {
+        let request = DeviceRegisterAPIRequest(config: config, deviceData: deviceData)
+
+        do {
+            let response = try await apiClient.send(request)
+            return response
+        } catch let error as APIError {
+            throw UserNetworkError.from(apiError: error)
+        } catch {
             throw UserNetworkError.apiError(.requestFailed(error))
         }
     }

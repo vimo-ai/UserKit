@@ -50,6 +50,17 @@ public struct FullUserInfo: Codable, Equatable {
 }
 
 
+/// 用户绑定信息
+public struct UserBinding: Codable, Equatable {
+    public let apple: Bool
+    public let wechat: Bool
+
+    public init(apple: Bool, wechat: Bool) {
+        self.apple = apple
+        self.wechat = wechat
+    }
+}
+
 /// 用户认证响应（对应后端UserAuthResponse）
 public struct UserAuthResponse: Codable {
     public let id: Int
@@ -62,13 +73,11 @@ public struct UserAuthResponse: Codable {
     public let anonymous: Bool?
     public let anonymousUuid: String?
     public let token: String
-    
+    public let binding: UserBinding?
 
     enum CodingKeys: String, CodingKey {
-        case id, nickname, avatar, email, account, phone, platform, anonymous, anonymousUuid, token
+        case id, nickname, avatar, email, account, phone, platform, anonymous, anonymousUuid, token, binding
     }
-
-
 }
 
 /// 批量用户信息响应（对应后端UserInfo）
@@ -103,8 +112,9 @@ public struct UserProfileResponse: Codable, Equatable {
     public let account: String?
     public let phone: String?
     public let platform: String?
-    
-    public init(id: Int, nickname: String, avatar: String?, email: String?, account: String?, phone: String?, platform: String?) {
+    public let binding: UserBinding?
+
+    public init(id: Int, nickname: String, avatar: String?, email: String?, account: String?, phone: String?, platform: String?, binding: UserBinding? = nil) {
         self.id = id
         self.nickname = nickname
         self.avatar = avatar
@@ -112,10 +122,11 @@ public struct UserProfileResponse: Codable, Equatable {
         self.account = account
         self.phone = phone
         self.platform = platform
+        self.binding = binding
     }
-    
+
     /// 从FullUserInfo创建
-    public init(from full: FullUserInfo) {
+    public init(from full: FullUserInfo, binding: UserBinding? = nil) {
         self.id = full.id
         self.nickname = full.nickname
         self.avatar = full.avatar
@@ -123,6 +134,7 @@ public struct UserProfileResponse: Codable, Equatable {
         self.account = full.account
         self.phone = full.phone
         self.platform = full.platform
+        self.binding = binding
     }
 }
 
@@ -164,6 +176,19 @@ public struct DeregisterAppleResponse: Codable {
 
 /// 通用注销响应
 public typealias DeregisterResponse = DeregisterAppleResponse
+
+/// 头像上传响应
+public struct AvatarUploadResponse: Codable, Equatable {
+    public let success: Bool
+    public let url: String?
+    public let error: String?
+
+    public init(success: Bool, url: String? = nil, error: String? = nil) {
+        self.success = success
+        self.url = url
+        self.error = error
+    }
+}
 
 /// 设备注册响应
 public struct DeviceRegisterResponse: Codable {
