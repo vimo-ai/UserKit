@@ -8,34 +8,36 @@
 import Foundation
 import UserNotifications
 import UIKit
+import MLoggerKit
 
 /// 通知处理器，负责处理推送通知的接收、解析和响应
 public class NotificationHandler: ObservableObject {
-    
+
     public static let shared = NotificationHandler()
-    
+
     // MARK: - Published Properties
-    
+
     @Published public private(set) var badgeCount: Int = 0
     @Published public private(set) var notificationHistory: [NotificationData] = []
-    
+
     // MARK: - Private Properties
-    
+
     private let maxHistoryCount = 50
     private var notificationCategories: Set<UNNotificationCategory> = []
-    
+    private let logger = MLogger(category: .push)
+
     private init() {
         loadBadgeCount()
         loadNotificationHistory()
         setupNotificationCategories()
     }
-    
+
     // MARK: - Notification Categories Setup
-    
+
     /// 设置通知类别和快捷操作
     private func setupNotificationCategories() {
         var categories: Set<UNNotificationCategory> = []
-        
+
         // 约定通知类别
         let agreementAcceptAction = UNNotificationAction(
             identifier: NotificationAction.acceptAgreement.rawValue,
@@ -53,7 +55,7 @@ public class NotificationHandler: ObservableObject {
             intentIdentifiers: []
         )
         categories.insert(agreementCategory)
-        
+
         // 信标通知类别
         let beaconRespondAction = UNNotificationAction(
             identifier: NotificationAction.respondBeacon.rawValue,
@@ -66,7 +68,7 @@ public class NotificationHandler: ObservableObject {
             intentIdentifiers: []
         )
         categories.insert(beaconCategory)
-        
+
         // 好友通知类别
         let friendAcceptAction = UNNotificationAction(
             identifier: NotificationAction.acceptFriend.rawValue,
@@ -84,7 +86,7 @@ public class NotificationHandler: ObservableObject {
             intentIdentifiers: []
         )
         categories.insert(friendCategory)
-        
+
         // 计划通知类别（一般只需要查看）
         let planCategory = UNNotificationCategory(
             identifier: NotificationType.plan.categoryIdentifier,
@@ -92,41 +94,39 @@ public class NotificationHandler: ObservableObject {
             intentIdentifiers: []
         )
         categories.insert(planCategory)
-        
+
         // 注册所有类别
         notificationCategories = categories
         UNUserNotificationCenter.current().setNotificationCategories(categories)
-        
-        print("📋 通知类别已设置: \(categories.count)个类别")
+
+        logger.debug("Notification categories registered: \(categories.count)")
     }
-    
+
     // MARK: - Notification Handling
-    
+
     /// 处理前台通知
     public func handleForegroundNotification(_ notification: UNNotification) {
         let notificationData = parseNotificationData(notification.request.content.userInfo)
-        
+
         // 添加到历史记录
         addToHistory(notificationData)
-        
+
         // 更新Badge数量
         incrementBadge()
-        
-        // 🆕 自动同步数据 - 无论用户是否点击都会执行
+
+        // 自动同步数据 - 无论用户是否点击都会执行
         Task {
             await syncDataFromNotification(notificationData)
         }
-        
-        print("📨 前台通知处理: \(notificationData.title ?? "无标题")")
+
+        logger.debug("Foreground notification received: \(notificationData.type.displayName)")
     }
-    
+
     /// 处理通知响应（用户点击或快捷操作）
     public func handleNotificationResponse(_ response: UNNotificationResponse) {
         let notificationData = parseNotificationData(response.notification.request.content.userInfo)
         let actionIdentifier = response.actionIdentifier
-        
-        print("👆 处理通知响应: \(actionIdentifier)")
-        
+
         // 处理不同的操作
         if actionIdentifier == UNNotificationDefaultActionIdentifier {
             // 用户点击通知本身
@@ -135,11 +135,11 @@ public class NotificationHandler: ObservableObject {
             // 用户点击快捷操作
             handleQuickAction(action, data: notificationData)
         }
-        
+
         // 添加到历史记录（如果还没有）
         addToHistory(notificationData)
     }
-    
+
     /// 处理默认动作（点击通知）
     private func handleDefaultAction(_ data: NotificationData) {
         // 发送导航事件
@@ -148,17 +148,17 @@ public class NotificationHandler: ObservableObject {
             "messageId": data.messageId ?? 0,
             "customData": data.customData
         ]
-        
+
         NotificationCenter.default.post(
             name: .navigateFromNotification,
             object: nil,
             userInfo: navigationInfo
         )
-        
+
         // 减少Badge数量（用户已查看）
         decrementBadge()
     }
-    
+
     /// 处理快捷操作
     private func handleQuickAction(_ action: NotificationAction, data: NotificationData) {
         Task {
@@ -171,78 +171,73 @@ public class NotificationHandler: ObservableObject {
                 case .respondBeacon:
                     handleBeaconAction(data)
                 }
-                
+
                 // 操作成功，减少Badge数量
                 await MainActor.run {
                     decrementBadge()
                 }
-                
+
             } catch {
-                print("❌ 快捷操作处理失败: \(error.localizedDescription)")
-                // 可以显示错误提示
+                logger.error("Quick action handling failed: \(error.localizedDescription)")
             }
         }
     }
-    
+
     // MARK: - Quick Action Handlers
-    
+
     /// 处理约定相关操作
     private func handleAgreementAction(_ action: NotificationAction, data: NotificationData) async throws {
         guard let messageId = data.messageId else {
             throw NotificationError.missingMessageId
         }
-        
+
         let accepted = (action == .acceptAgreement)
-        print("📋 \(accepted ? "接受" : "拒绝")约定: \(messageId)")
-        
+        logger.info("Agreement action: \(accepted ? "accepted" : "rejected")")
+
         // 这里应该调用业务API
         // try await AgreementService.respond(messageId: messageId, accepted: accepted)
-        
-        // 暂时只打印日志
-        print("✅ 约定操作完成: \(accepted ? "已接受" : "已拒绝")")
+
+        _ = messageId // suppress unused warning until API is wired up
     }
-    
+
     /// 处理好友相关操作
     private func handleFriendAction(_ action: NotificationAction, data: NotificationData) async throws {
         guard let messageId = data.messageId else {
             throw NotificationError.missingMessageId
         }
-        
+
         let accepted = (action == .acceptFriend)
-        print("👥 \(accepted ? "接受" : "拒绝")好友请求: \(messageId)")
-        
+        logger.info("Friend request action: \(accepted ? "accepted" : "rejected")")
+
         // 这里应该调用业务API
         // try await FriendService.respond(messageId: messageId, accepted: accepted)
-        
-        // 暂时只打印日志
-        print("✅ 好友操作完成: \(accepted ? "已接受" : "已拒绝")")
+
+        _ = messageId // suppress unused warning until API is wired up
     }
-    
+
     /// 处理信标操作
     private func handleBeaconAction(_ data: NotificationData) {
-        print("🔥 回应信标: \(data.messageId ?? 0)")
-        
         // 导航到信标详情页面
         let navigationInfo: [String: Any] = [
             "type": NotificationType.beacon.rawValue,
             "messageId": data.messageId ?? 0,
             "action": "respond"
         ]
-        
+
         NotificationCenter.default.post(
             name: .navigateFromNotification,
             object: nil,
             userInfo: navigationInfo
         )
     }
-    
+
     // MARK: - Data Parsing
-    
+
     /// 解析通知数据
     private func parseNotificationData(_ userInfo: [AnyHashable: Any]) -> NotificationData {
         let messageType = userInfo["messageType"] as? String ?? "unknown"
         let type = NotificationType(rawValue: messageType) ?? .plan
-        
+
         return NotificationData(
             type: type,
             messageId: userInfo["messageId"] as? Int,
@@ -253,91 +248,90 @@ public class NotificationHandler: ObservableObject {
             receivedAt: Date()
         )
     }
-    
+
     // MARK: - Badge Management
-    
+
     /// 增加Badge数量
     private func incrementBadge() {
         badgeCount += 1
         updateApplicationBadge()
         saveBadgeCount()
     }
-    
+
     /// 减少Badge数量
     private func decrementBadge() {
         badgeCount = max(0, badgeCount - 1)
         updateApplicationBadge()
         saveBadgeCount()
     }
-    
+
     /// 清除所有Badge
     public func clearBadge() {
         badgeCount = 0
         updateApplicationBadge()
         saveBadgeCount()
     }
-    
+
     /// 更新应用Badge
     private func updateApplicationBadge() {
         DispatchQueue.main.async {
             UIApplication.shared.applicationIconBadgeNumber = self.badgeCount
         }
     }
-    
+
     /// 保存Badge数量
     private func saveBadgeCount() {
         UserDefaults.standard.set(badgeCount, forKey: "notificationBadgeCount")
     }
-    
+
     /// 加载Badge数量
     private func loadBadgeCount() {
         badgeCount = UserDefaults.standard.integer(forKey: "notificationBadgeCount")
         updateApplicationBadge()
     }
-    
+
     // MARK: - History Management
-    
+
     /// 添加到历史记录
     private func addToHistory(_ data: NotificationData) {
         // 检查是否已存在
         if !notificationHistory.contains(where: { $0.id == data.id }) {
             notificationHistory.insert(data, at: 0)
-            
+
             // 限制历史记录数量
             if notificationHistory.count > maxHistoryCount {
                 notificationHistory.removeLast()
             }
-            
+
             saveNotificationHistory()
         }
     }
-    
+
     /// 清除历史记录
     public func clearHistory() {
         notificationHistory.removeAll()
         saveNotificationHistory()
     }
-    
+
     /// 清除通知历史 (UI兼容方法)
     public func clearNotificationHistory() {
         clearHistory()
     }
-    
+
     /// 移除特定通知记录 (UI兼容方法)
     /// - Parameter recordId: 要移除的记录ID
     public func removeNotificationRecord(_ recordId: UUID) {
         notificationHistory.removeAll { $0.id == recordId }
         saveNotificationHistory()
-        print("🗑️ 已移除通知记录: \(recordId)")
     }
-    
+
     /// 保存通知历史记录
     private func saveNotificationHistory() {
         if let encoded = try? JSONEncoder().encode(notificationHistory) {
             UserDefaults.standard.set(encoded, forKey: "notificationHistory")
         }
     }
-    
+
     /// 加载通知历史记录
     private func loadNotificationHistory() {
         guard let data = UserDefaults.standard.data(forKey: "notificationHistory"),
@@ -346,51 +340,51 @@ public class NotificationHandler: ObservableObject {
         }
         notificationHistory = history
     }
-    
+
     // MARK: - Data Synchronization
-    
+
     /// 根据推送通知同步相关数据
     /// - Parameter data: 通知数据
     private func syncDataFromNotification(_ data: NotificationData) async {
-        guard let messageId = data.messageId else {
-            print("⚠️ 推送缺少messageId，跳过数据同步")
+        guard data.messageId != nil else {
+            logger.debug("Push notification missing messageId, skipping data sync")
             return
         }
-        
-        print("🔄 开始同步推送数据: \(data.type.displayName)(\(messageId))")
-        
+
+        logger.debug("Starting data sync for push: \(data.type.displayName)")
+
         do {
             switch data.type {
             case .beacon, .plan, .agreement:
                 // 同步活动数据
-                try await syncActivityData(activityId: messageId)
-                
+                try await syncActivityData(activityId: data.messageId!)
+
             case .friend:
                 // 同步好友数据
                 try await syncFriendData()
             }
-            
-            // 🆕 通知APP内部页面数据已更新
+
+            // 通知APP内部页面数据已更新
             await MainActor.run {
                 NotificationCenter.default.post(
                     name: .dataUpdatedFromPush,
                     object: data
                 )
             }
-            
-            print("✅ 推送数据同步完成: \(data.type.displayName)(\(messageId))")
-            
+
+            logger.info("Push data sync completed: \(data.type.displayName)")
+
         } catch {
-            print("❌ 推送数据同步失败: \(error.localizedDescription)")
+            logger.error("Push data sync failed: \(error.localizedDescription)")
         }
     }
-    
+
     /// 同步活动数据
     private func syncActivityData(activityId: Int) async throws {
         // TODO: 这里需要调用ActivityClient或ActivityService
         // 由于NotificationHandler在UserKit中，需要通过协议或通知机制与业务层通信
-        print("🔄 同步活动数据: \(activityId)")
-        
+        logger.debug("Syncing activity data")
+
         // 方案：通过NotificationCenter通知业务层同步数据
         await MainActor.run {
             NotificationCenter.default.post(
@@ -400,11 +394,11 @@ public class NotificationHandler: ObservableObject {
             )
         }
     }
-    
+
     /// 同步好友数据
     private func syncFriendData() async throws {
-        print("🔄 同步好友数据")
-        
+        logger.debug("Syncing friend data")
+
         // 方案：通过NotificationCenter通知业务层同步数据
         await MainActor.run {
             NotificationCenter.default.post(
@@ -420,14 +414,14 @@ public class NotificationHandler: ObservableObject {
 /// 通知类型
 public enum NotificationType: String, CaseIterable, Codable {
     case plan = "plan"
-    case beacon = "beacon" 
+    case beacon = "beacon"
     case agreement = "agreement"
     case friend = "friend"
-    
+
     var categoryIdentifier: String {
         return "BEACONFLOW_\(rawValue.uppercased())"
     }
-    
+
     var displayName: String {
         switch self {
         case .plan: return "计划"
@@ -457,12 +451,12 @@ public struct NotificationData: Identifiable, Codable {
     public let senderNickname: String?
     public let customData: [AnyHashable: Any]
     public let receivedAt: Date
-    
+
     // Codable支持
     private enum CodingKeys: String, CodingKey {
         case type, messageId, title, content, senderNickname, receivedAt
     }
-    
+
     public init(type: NotificationType, messageId: Int?, title: String?, content: String?, senderNickname: String?, customData: [AnyHashable: Any], receivedAt: Date) {
         self.type = type
         self.messageId = messageId
@@ -472,7 +466,7 @@ public struct NotificationData: Identifiable, Codable {
         self.customData = customData
         self.receivedAt = receivedAt
     }
-    
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         type = try container.decode(NotificationType.self, forKey: .type)
@@ -483,7 +477,7 @@ public struct NotificationData: Identifiable, Codable {
         receivedAt = try container.decode(Date.self, forKey: .receivedAt)
         customData = [:] // 解码时不包含customData
     }
-    
+
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(type, forKey: .type)
@@ -500,7 +494,7 @@ public enum NotificationError: LocalizedError {
     case missingMessageId
     case invalidNotificationData
     case networkError(Error)
-    
+
     public var errorDescription: String? {
         switch self {
         case .missingMessageId:
@@ -518,13 +512,13 @@ public enum NotificationError: LocalizedError {
 extension Notification.Name {
     /// 从通知导航事件
     public static let navigateFromNotification = Notification.Name("NavigateFromNotification")
-    
+
     /// 推送数据更新完成事件
     public static let dataUpdatedFromPush = Notification.Name("DataUpdatedFromPush")
-    
+
     /// 同步活动数据请求
     public static let syncActivityData = Notification.Name("SyncActivityData")
-    
+
     /// 同步好友数据请求
     public static let syncFriendData = Notification.Name("SyncFriendData")
 }

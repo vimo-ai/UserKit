@@ -1,6 +1,7 @@
 import Foundation
 import UIKit
 import Security
+import MLoggerKit
 
 // MARK: - Device Information
 
@@ -13,7 +14,9 @@ public struct DeviceInfo: Codable, Equatable {
     public let systemVersion: String?
     public let appVersion: String?
     public let deviceToken: String?
-    
+
+    private static let logger = MLogger(category: .auth)
+
     public init(platform: String, deviceIdentifier: String, deviceName: String?, deviceModel: String?, systemVersion: String?, appVersion: String?, deviceToken: String?) {
         self.platform = platform
         self.deviceIdentifier = deviceIdentifier
@@ -23,7 +26,7 @@ public struct DeviceInfo: Codable, Equatable {
         self.appVersion = appVersion
         self.deviceToken = deviceToken
     }
-    
+
     /// 当前设备信息收集
     public static func current(deviceToken: String? = nil) -> DeviceInfo {
         DeviceInfo(
@@ -36,7 +39,7 @@ public struct DeviceInfo: Codable, Equatable {
             deviceToken: deviceToken
         )
     }
-    
+
     /// 获取或创建持久化设备标识符
     private static func getOrCreateDeviceIdentifier() -> String {
         // 直接使用Keychain查询，避免通过SecureStorage避免循环依赖
@@ -46,17 +49,17 @@ public struct DeviceInfo: Codable, Equatable {
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
         ]
-        
+
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
-        
+
         // 如果从Keychain获取到了设备标识符
         if status == errSecSuccess,
            let data = result as? Data,
            let existingId = String(data: data, encoding: .utf8), !existingId.isEmpty {
             return existingId
         }
-        
+
         // 如果没有存储的标识符，尝试使用系统提供的vendor标识符
         var deviceId: String
         if let vendorId = UIDevice.current.identifierForVendor?.uuidString {
@@ -65,7 +68,7 @@ public struct DeviceInfo: Codable, Equatable {
             // 如果系统标识符也不可用，生成新的UUID
             deviceId = UUID().uuidString
         }
-        
+
         // 存储到Keychain
         let data = deviceId.data(using: .utf8)!
         let addQuery: [String: Any] = [
@@ -74,16 +77,16 @@ public struct DeviceInfo: Codable, Equatable {
             kSecValueData as String: data,
             kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
         ]
-        
+
         SecItemDelete(addQuery as CFDictionary) // 删除可能存在的旧值
         let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
-        
+
         if addStatus == errSecSuccess {
-            print("📱 设备标识符已生成并存储到Keychain: \(deviceId.prefix(8))...")
+            logger.debug("Device identifier generated and stored to Keychain")
         } else {
-            print("⚠️ 设备标识符存储到Keychain失败，状态码: \(addStatus)")
+            logger.error("Device identifier storage failed, status: \(addStatus)")
         }
-        
+
         return deviceId
     }
 }
